@@ -55,6 +55,7 @@ TransportTCP::TransportTCP(PollSet* poll_set, int flags)
 , expecting_write_(false)
 , is_server_(false)
 , server_port_(-1)
+, local_port_(-1)
 , poll_set_(poll_set)
 , flags_(flags)
 {
@@ -90,7 +91,6 @@ bool TransportTCP::setNonBlocking()
 bool TransportTCP::initializeSocket()
 {
   ROS_ASSERT(sock_ != ROS_INVALID_SOCKET);
-
   if (!setNonBlocking())
   {
     return false;
@@ -111,6 +111,21 @@ bool TransportTCP::initializeSocket()
       ss << getClientURI() << " on socket " << sock_;
       cached_remote_host_ = ss.str();
     }
+  }
+
+  if (local_port_ < 0)
+  {
+      la_len_ = s_use_ipv6_  ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+      getsockname(sock_, (sockaddr *)&local_address_, &la_len_);
+      switch (local_address_.ss_family)
+      {
+        case AF_INET:
+          local_port_ = ntohs(((sockaddr_in *)&local_address_)->sin_port);
+          break;
+        case AF_INET6:
+          local_port_ = ntohs(((sockaddr_in6 *)&local_address_)->sin6_port);
+          break;
+      }
   }
 
 #ifdef ROSCPP_USE_TCP_NODELAY
@@ -216,7 +231,7 @@ bool TransportTCP::connect(const std::string& host, int port)
   {
     sockaddr_in *address = (sockaddr_in*) &sas;
     sas_len = sizeof(sockaddr_in);
-    
+    la_len_ = sizeof(sockaddr_in);
     address->sin_family = AF_INET;
     address->sin_port = htons(port);
     address->sin_addr.s_addr = ina.s_addr;
@@ -225,6 +240,7 @@ bool TransportTCP::connect(const std::string& host, int port)
   {
     sockaddr_in6 *address = (sockaddr_in6*) &sas;
     sas_len = sizeof(sockaddr_in6);
+    la_len_ = sizeof(sockaddr_in6);
     address->sin6_family = AF_INET6;
     address->sin6_port = htons(port);
     memcpy(address->sin6_addr.s6_addr, in6a.s6_addr, sizeof(in6a.s6_addr));
@@ -368,7 +384,6 @@ bool TransportTCP::listen(int port, int backlog, const AcceptCallback& accept_cb
 
   ::listen(sock_, backlog);
   getsockname(sock_, (sockaddr *)&server_address_, &sa_len_);
-
   switch (server_address_.ss_family)
   {
     case AF_INET:
@@ -378,7 +393,6 @@ bool TransportTCP::listen(int port, int backlog, const AcceptCallback& accept_cb
       server_port_ = ntohs(((sockaddr_in6 *)&server_address_)->sin6_port);
       break;
   }
-
   if (!initializeSocket())
   {
     return false;
@@ -682,7 +696,9 @@ void TransportTCP::socketUpdate(int events)
 
 std::string TransportTCP::getTransportInfo()
 {
-  return "TCPROS connection to [" + cached_remote_host_ + "]";
+  std::stringstream str;
+  str << "TCPROS connection on port " << local_port_ << " to [" << cached_remote_host_ << "]";
+  return str.str();
 }
 
 std::string TransportTCP::getClientURI()

@@ -283,10 +283,10 @@ XmlRpc::XmlRpcValue Publication::getStats()
 }
 
 // rospy returns values like this:
-// [(1, "('127.0.0.1', 62334)", 'o', 'TCPROS', '/chatter')]
+// [(1, "('127.0.0.1', 62334)", 'o', 'TCPROS', '/chatter', BOOL)]
 //
 // We're outputting something like this:
-// (0, (127.0.0.1, 62707), o, TCPROS, /chatter)
+// (0, /listener, o, TCPROS, /chatter, BOOL, TCPROS connection on port X to [Y:Z on socket S])
 void Publication::getInfo(XmlRpc::XmlRpcValue& info)
 {
   boost::mutex::scoped_lock lock(subscriber_links_mutex_);
@@ -300,6 +300,8 @@ void Publication::getInfo(XmlRpc::XmlRpcValue& info)
     curr_info[2] = "o";
     curr_info[3] = (*c)->getTransportType();
     curr_info[4] = name_;
+    curr_info[5] = true; // For length compatibility with rospy
+    curr_info[6] = (*c)->getTransportInfo();
     info[info.size()] = curr_info;
   }
 }

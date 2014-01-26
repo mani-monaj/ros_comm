@@ -79,6 +79,10 @@ class Transport(object):
         # Number of messages that have passed through this transport
         self.stat_num_msg = 0         
     
+        # Endpoint Details
+        self.local_endpoint = None
+        self.remote_endpoint = None
+
     def fileno(self):
         """
         Get a file descriptor for select() if available
@@ -104,6 +108,11 @@ class Transport(object):
     ## @throws TransportTerminated no longer open for publishing
     def write_data(self, data):
         raise Exception("not implemented")
+
+    ## Implements the getTransportInfo() from roscpp
+    ## Similar to getTransportInfo() in 'libros/transport/transport_tcp.cpp'
+    def get_transport_info(self):
+        return ""
 
 ## Shell class to hold stats about transport that is being killed off.
 ## This allows the information to stick around but the original Tranport to be gc'd

@@ -433,7 +433,7 @@ class _TopicImpl(object):
         """
         # save referenceto avoid locking
         connections = self.connections
-        return [(c.id, c.endpoint_id, c.direction, c.transport_type, self.resolved_name, True) for c in connections]
+        return [(c.id, c.endpoint_id, c.direction, c.transport_type, self.resolved_name, True, c.get_transport_info()) for c in connections]
 
     def get_stats(self): # STATS
         """Get the stats for this topic (API stub)"""

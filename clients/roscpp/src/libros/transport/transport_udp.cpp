@@ -57,6 +57,7 @@ TransportUDP::TransportUDP(PollSet* poll_set, int flags, int max_datagram_size)
 , expecting_write_(false)
 , is_server_(false)
 , server_port_(-1)
+, local_port_(-1)
 , poll_set_(poll_set)
 , flags_(flags)
 , connection_id_(0)
@@ -131,7 +132,9 @@ void TransportUDP::socketUpdate(int events)
 
 std::string TransportUDP::getTransportInfo()
 {
-  return "UDPROS connection to [" + cached_remote_host_ + "]";
+    std::stringstream str;
+    str << "UDPROS connection on port " << local_port_ << " to [" << cached_remote_host_ << "]";
+    return str.str();
 }
 
 bool TransportUDP::connect(const std::string& host, int port, int connection_id)
@@ -208,6 +211,10 @@ bool TransportUDP::connect(const std::string& host, int port, int connection_id)
   Sleep(100);
 #endif
 
+  std::stringstream ss;
+  ss << host << ":" << port << " on socket " << sock_;
+  cached_remote_host_ = ss.str();
+
   if (!initializeSocket())
   {
     return false;
@@ -221,7 +228,6 @@ bool TransportUDP::connect(const std::string& host, int port, int connection_id)
 bool TransportUDP::createIncoming(int port, bool is_server)
 {
   is_server_ = is_server;
-
   sock_ = socket(AF_INET, SOCK_DGRAM, 0);
 
   if (sock_ <= 0)
@@ -257,7 +263,6 @@ bool TransportUDP::createIncoming(int port, bool is_server)
 bool TransportUDP::initializeSocket()
 {
   ROS_ASSERT(sock_ != ROS_INVALID_SOCKET);
-
   if (!(flags_ & SYNCHRONOUS))
   {
 	  int result = set_non_blocking(sock_);
@@ -267,6 +272,10 @@ bool TransportUDP::initializeSocket()
       return false;
     }
   }
+
+  socklen_t len = sizeof(local_address_);
+  getsockname(sock_, (sockaddr *)&local_address_, &len);
+  local_port_ = ntohs(local_address_.sin_port);
 
   ROS_ASSERT(poll_set_ || (flags_ & SYNCHRONOUS));
   if (poll_set_)
@@ -675,6 +684,27 @@ TransportUDPPtr TransportUDP::createOutgoing(std::string host, int port, int con
   }
   return transport;
 
+}
+
+std::string TransportUDP::getClientURI()
+{
+  ROS_ASSERT(!is_server_);
+
+  sockaddr_storage sas;
+  socklen_t sas_len = sizeof(sas);
+  getpeername(sock_, (sockaddr *)&sas, &sas_len);
+
+  sockaddr_in *sin = (sockaddr_in *)&sas;
+
+  char namebuf[128];
+  int port = ntohs(sin->sin_port);
+  strcpy(namebuf, inet_ntoa(sin->sin_addr));
+
+  std::string ip = namebuf;
+  std::stringstream uri;
+  uri << ip << ":" << port;
+
+  return uri.str();
 }
 
 }
